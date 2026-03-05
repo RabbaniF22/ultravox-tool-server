@@ -3,9 +3,9 @@ CTC Budget Checker Tool API
 FastAPI endpoint to check if candidate's expected CTC is within budget
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 import logging
 
@@ -33,16 +33,26 @@ app.add_middleware(
 # Request/Response Models
 class CTCRequest(BaseModel):
     """Request model for CTC budget check"""
-    expected_ctc: str = Field(..., description="Candidate's expected CTC in LPA (e.g., '45', '85')")
-    max_budget: str = Field(..., description="Maximum budget for position in LPA")
-
-    class Config:
-        schema_extra = {
+    expected_ctc: str = Field(
+        ...,
+        alias="expectedCtc",
+        description="Candidate's expected CTC in LPA (e.g., '45', '85')"
+    )
+    max_budget: str = Field(
+        ...,
+        alias="maxBudget",
+        description="Maximum budget for position in LPA"
+    )
+    # Accept both snake_case and camelCase keys from external callers.
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
             "example": {
                 "expected_ctc": "85",
                 "max_budget": "90"
             }
         }
+    )
 
 
 class CTCResponse(BaseModel):
@@ -51,13 +61,14 @@ class CTCResponse(BaseModel):
     message: str = Field(..., description="Detailed message about the result")
     error: Optional[str] = Field(None, description="Error type if result is 'Error'")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "result": "Within budget",
                 "message": "Expected CTC of 85.0 LPA is within the maximum budget of 90.0 LPA"
             }
         }
+    )
 
 
 class HealthResponse(BaseModel):
