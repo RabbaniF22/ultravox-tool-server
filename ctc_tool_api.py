@@ -101,14 +101,11 @@ class CTCRequest(BaseModel):
 class CTCResponse(BaseModel):
     """Response model for CTC budget check"""
     result: str = Field(..., description="Result: 'Within budget', 'Above budget', or 'Error'")
-    message: str = Field(..., description="User-safe message about the result (no budget numbers)")
-    error: Optional[str] = Field(None, description="Error type if result is 'Error'")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "result": "Above budget",
-                "message": "Expected CTC is above the budget for this role.",
             }
         }
     )
@@ -198,9 +195,9 @@ async def check_ctc(request: CTCRequest) -> CTCResponse:
     Returns:
     - **Within budget**: If expected CTC ≤ max budget
     - **Above budget**: If expected CTC > max budget
-    - **Error**: If validation fails (graceful message)
+    - **Error**: If validation fails
 
-    🔒 Does NOT reveal the budget number in response.
+    🔒 Returns only the result field and does NOT reveal the budget number.
     """
     try:
         expected_ctc_str = (request.expected_ctc or "").strip()
@@ -208,49 +205,27 @@ async def check_ctc(request: CTCRequest) -> CTCResponse:
 
         # Validate inputs are not empty
         if not expected_ctc_str or not max_budget_str:
-            return CTCResponse(
-                result="Error",
-                error="Missing parameters",
-                message="Budget check could not be performed.",
-            )
+            return CTCResponse(result="Error")
 
         expected_ctc = _parse_lpa(expected_ctc_str)
         max_budget = _parse_lpa(max_budget_str)
 
         if expected_ctc is None or max_budget is None:
-            return CTCResponse(
-                result="Error",
-                error="Invalid number format",
-                message="Budget check could not be performed.",
-            )
+            return CTCResponse(result="Error")
 
         # Validate reasonable ranges (0-200 LPA)
         if expected_ctc < 0 or expected_ctc > 200 or max_budget < 0 or max_budget > 200:
-            return CTCResponse(
-                result="Error",
-                error="Invalid range",
-                message="Budget check could not be performed.",
-            )
+            return CTCResponse(result="Error")
 
         # Budget check (NO budget leak in response)
         if expected_ctc <= max_budget:
-            return CTCResponse(
-                result="Within budget",
-                message="Expected CTC is within the budget for this role.",
-            )
+            return CTCResponse(result="Within budget")
 
-        return CTCResponse(
-            result="Above budget",
-            message="Expected CTC is above the budget for this role.",
-        )
+        return CTCResponse(result="Above budget")
 
     except Exception as e:
         logger.exception("Unexpected error in check_ctc")
-        return CTCResponse(
-            result="Error",
-            error="Server error",
-            message="Budget check could not be performed.",
-        )
+        return CTCResponse(result="Error")
 
 
 @app.get("/health", response_model=HealthResponse, summary="Health Check")
